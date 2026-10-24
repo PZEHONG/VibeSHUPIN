@@ -10,6 +10,7 @@
 """
 import argparse, json, re, subprocess, sys
 from pathlib import Path
+from media_tools import media_tool
 
 H = 1920
 FORBIDDEN = [
@@ -24,13 +25,13 @@ AUDIO_OK = re.compile(r"^(narration.*\.wav|timings.*\.json)$", re.I)
 
 
 def probe(p):
-    r = subprocess.run(["ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", str(p)],
+    r = subprocess.run([media_tool("ffprobe"), "-v", "error", "-show_streams", "-show_format", "-of", "json", str(p)],
                        capture_output=True, text=True, check=True)
     return json.loads(r.stdout)
 
 
 def loudness(p):
-    r = subprocess.run(["ffmpeg", "-v", "info", "-i", str(p), "-af", "loudnorm=print_format=json",
+    r = subprocess.run([media_tool("ffmpeg"), "-v", "info", "-i", str(p), "-af", "loudnorm=print_format=json",
                         "-f", "null", "-"], capture_output=True, text=True)
     m = re.findall(r"\{[^{}]*input_i[^{}]*\}", r.stderr, re.S)
     return json.loads(m[-1]) if m else None
@@ -56,6 +57,33 @@ def main():
     check("工程文件 film.js / index.html / storyboard.md",
           film_path.exists() and html_path.exists() and (proj / "storyboard.md").exists(),
           "缺哪一个补哪一个")
+
+
+    # 新画风工程必须带完整清单；旧 B/C 工程不强行迁移。
+    art_path = proj / "art-direction.json"
+    uses_art = art_path.exists() or "art-direction.js" in html or "ART_DIRECTION" in film
+    if uses_art:
+        from visual_styles import read_json, validate_art, runtime_art
+        try:
+            art = read_json(art_path)
+            art_errors = validate_art(art, proj, images=True)
+            check("六套画风分镜与素材完整（含竖幅尺寸）", not art_errors, "；".join(art_errors[:12]))
+            manifest_js = (proj / "art-direction.js").read_text(encoding="utf-8")
+            prefix, suffix = "window.ART_DIRECTION = ", ";\n"
+            payload = json.loads(manifest_js.removeprefix(prefix).removesuffix(suffix))
+            consistent = payload == runtime_art(art)
+            check("画风与浏览器清单一致", consistent, "修改art-direction.json后重新运行prepare_art.py")
+            mdur_art = re.search(r"\bDUR\s*=\s*([\d.]+)", film)
+            check("绘画清单片长与film.js一致", bool(mdur_art) and
+                  abs(float(mdur_art.group(1)) - art["duration"]) < .05,
+                  "旁白重配后同步调整镜头、DUR与清单")
+            timing_path = proj / "audio/timings.json"
+            if timing_path.exists():
+                check("绘画清单片长与真实旁白一致",
+                      abs(read_json(timing_path)["duration"] - art["duration"]) < .05,
+                      "请按真实旁白重排绘画分镜")
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            check("六套画风分镜与素材清单可读取", False, str(exc))
 
     m = re.search(r"VK_SIZE\s*=\s*\[\s*(\d+)\s*,\s*(\d+)\s*\]", html)
     check("画幅声明 window.VK_SIZE=[1080,1920]", bool(m) and (m.group(1), m.group(2)) == ("1080", "1920"),
@@ -91,7 +119,18 @@ def main():
     elif not args.no_audio:
         check("audio/timings.json 存在", False, "先跑 scripts/make_voiceover.py")
 
-    subs = re.findall(r"\{\s*a:\s*([\d.]+),\s*b:\s*([\d.]+),\s*zh:\s*'((?:[^'\\]|\\.)*)'", film)
+    # 新模板使用 JSON 安全序列化，保留旧工程的单引号对象兼容。
+    json_subs = re.search(r"\bconst\s+SUBS\s*=\s*(\[[\s\S]*?\]);", film)
+    subs = None
+    if json_subs:
+        try:
+            values = json.loads(json_subs.group(1))
+            subs = [(s["a"], s["b"], s["zh"]) for s in values]
+        except (ValueError, KeyError, TypeError):
+            pass
+    if subs is None:
+        subs = re.findall(r"\{\s*a:\s*([\d.]+),\s*b:\s*([\d.]+),\s*zh:\s*'((?:[^'\\]|\\.)*)'", film)
+
     check("字幕条目 SUBS 非空", len(subs) > 0, f"共 {len(subs)} 条")
     problems, prev_b = [], 0.0
     for a, b, zh in subs:
@@ -99,10 +138,10 @@ def main():
         if b <= a: problems.append(f"{a}–{b} 起止反了")
         if a < prev_b - 0.02: problems.append(f"{a} 与上一条重叠")
         if dur and b > dur + 0.05: problems.append(f"{b} 超出片长 {dur}")
-        for ln in zh.split("\\n"):
+        for ln in zh.replace("\\n", "\n").split("\n"):
             visible = len(re.sub(r"\{!?", "", ln).replace("}", ""))
             if visible > 18: problems.append(f"「{ln[:20]}」{visible} 字，一行太长")
-        if zh.count("\\n") > 1: problems.append(f"「{zh[:16]}」超过两行")
+        if zh.replace("\\n", "\n").count("\n") > 1: problems.append(f"「{zh[:16]}」超过两行")
         prev_b = b
     check("字幕逐条合法（顺序 / 不重叠 / 不超片长 / 一行≤18字 / 最多两行）", not problems, "；".join(problems[:8]))
 

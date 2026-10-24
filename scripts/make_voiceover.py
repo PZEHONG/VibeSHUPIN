@@ -12,6 +12,7 @@ timings.json 里每段的真实起止时刻就是分镜表和字幕的时间依�
 """
 import argparse, json, os, subprocess, sys, time, urllib.error, urllib.request
 from pathlib import Path
+from media_tools import media_tool
 
 import numpy as np
 
@@ -78,7 +79,7 @@ def post_tts(text, voice, model, speed=1.0, timeout=180):
 
 def decode(p, out_wav):
     subprocess.run(
-        ["ffmpeg", "-v", "error", "-y", "-i", str(p), "-ar", str(SR), "-ac", "2", str(out_wav)],
+        [media_tool("ffmpeg"), "-v", "error", "-y", "-i", str(p), "-ar", str(SR), "-ac", "2", str(out_wav)],
         check=True,
     )
 
@@ -101,7 +102,7 @@ def write_wav(p, x):
 
 def probe(p):
     r = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", str(p)],
+        [media_tool("ffprobe"), "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", str(p)],
         capture_output=True, text=True, check=True,
     )
     return float(r.stdout.strip())

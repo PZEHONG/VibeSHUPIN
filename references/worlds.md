@@ -1,6 +1,6 @@
 # 六套书评 AI 绘画外观规格（S01–S06）
 
-> 本文是书评绘画环节的画风选择与出图规范，替代原来的“两套外观”映射。其他入口仍写 C/B 时，画风选择以本文为准；C/B 的现有工程参数见第八节。
+> 本文是书评绘画环节的画风选择与出图规范，新工程已直接接入 S01–S06；C/B 仅兼容旧工程。命令与清单见第八节。
 > 成片固定 **1080×1920、9:16、30fps**。坐标、字幕与底板以 [vertical.md](vertical.md) 为准，不沿用旧横屏坐标。
 > 声音只有温暖男声旁白：**无伴奏、无音效、无第二音源**。视觉模板不改变这条规则。
 > 六宫格审核图的阅读顺序：上排 S01／S02／S03，下排 S04／S05／S06。图中“窗边读书的人”只是统一比较场景，不要求每本书都画同一个人、同一间房。
@@ -234,20 +234,41 @@
 - [ ] 按真实音频切镜和分字幕；只有温暖男声旁白，无音乐、音效或第二音源。
 - [ ] 完成原尺寸静帧、手机尺寸、实际运动与成片检查；自动终检另按现有流程执行。
 
-## 八、现有工程兼容说明
+## 八、建工程与完整工作流接入
 
-**S01–S06 是 AI 绘画模板编号，不是已经实现的 `--world` 参数。**
-
-当前 `scripts/new_film.py` 仍只接受：
+**S01–S06 已直接接入 `--world`。默认S01；B/C仅保留旧工程兼容。**
 
 ```bash
-python scripts/new_film.py <工程> --world B
-python scripts/new_film.py <工程> --world C
+python scripts/new_film.py <工程> --world S01
+# S01可换为S02/S03/S04/S05/S06；补全 art-direction.json 后：
+python scripts/prepare_art.py <工程>
+# 用AI绘图工具按 art-prompts.md 出图，保存到各镜 image 路径
+python scripts/prepare_art.py <工程> --check-images
+python engine/render.py <工程> --sheet 16
+python engine/render.py <工程> --det
+python engine/render.py <工程> --jobs 4
+python scripts/finalize.py <工程>
+python scripts/check_film.py <工程>
 ```
 
-- B 对应引擎的 `flat` 基础骨架，C 对应 `night` 基础骨架；它们负责现有工程的默认色板与组件，不等同于六套最终绘画材质。
-- 使用六套 AI 图片时，在分镜表记录 `画风：S01` 等编号。选择可用骨架后，自行接入图片与必要运动，匹配主画风的底色、辉光与颗粒；建工程命令不会自动生成图片或实现新画风。
-- `film.js` 仍须遵守确定性 `seek(t)`、真实旁白时间轴和竖屏字幕规范。预先加载所需图片，确认可用后再截图与渲染，避免缺图或首帧空白。
-- 不自动添加旧 B 仪表、旧 C 星点、鎏金放射线和长片名动画；只有与本书内容直接相关时才使用。
-- 原横屏两套参考的坐标、音效、配乐与全幅发光要求不再适用于本书评绘画模板。
-- 本次文档更新不改建工程脚本、引擎或已有影片。工程命令与 API 继续查 [engine.md](engine.md)，竖屏和字幕只认 [vertical.md](vertical.md)。
+| 文件／入口 | 职责 |
+|---|---|
+| `references/visual-styles.json` | 六套的统一编号、画材提示词、配色、字幕字族、辉光与颗粒配置 |
+| `script.json` | 可填 `visual_style` 或 `review_style`；显式命令参数优先 |
+| `art-direction.json` | 本片选定画风、真实片长、角色设定、逐镜动作、事实性质、图片与运动 |
+| `art-prompts.md` | 准备脚本导出的完整逐镜提示词，交绘图工具执行 |
+| `art-direction.js` | 自动导出的浏览器画风与素材清单 |
+| `assets/` | 绘图工具实际生成的分镜图片 |
+| `engine/art.js` | 图片预加载、按真实时间选镜头、轻微推拉和平移 |
+| `film.js` | 应用六套配置、补具体动作、最后绘制字幕 |
+| `scripts/check_film.py` | 检查清单同步、缺图、竖幅尺寸、片长、字幕和纯旁白规则 |
+
+- 已有工程用`--force`且没有显式画风或script.visual_style时，保留绘画清单的画风；同步标准分镜表的“画风：”头，正文保留。
+- 新工程不指定 `--world` 时，依次读取 `script.json.visual_style`、`review_style`（也接受旧的`style`文风字段）映射，再回退S01。
+- `prepare_art.py`先验证场景、动作、时代、原著依据与时间；`--check-images`再验证素材存在、可解码且接近9:16，至少540×960。
+- 生成图片的材质不能由底色／辉光替代。脚本负责清单与接图，实际出图使用现有AI绘图工具，不隐式调用付费服务。
+- 换画风时改`art-direction.json.style`并重新准备、出图；注册表配置变化也需重新准备，再渲染。已有图片不会自动重绘。
+- 素材预加载完成后引擎才就绪；缺图会明确报错。按`t`计算运动，支持乱序`seek(t)`。
+- 六套新工程不自动添加旧仪表、星点或鎏金卡。B/C老工程继续使用原骨架，既有影片不改写。
+- `--force`会重建`film.js/index.html`，保留已有绘画清单与分镜表；已有影片的手写动画不可无意覆盖。
+- 三条竖屏跑道及纯旁白规则继续有效；工程API见[engine.md](engine.md)，字幕只认[vertical.md](vertical.md)。

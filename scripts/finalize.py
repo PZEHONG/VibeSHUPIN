@@ -9,6 +9,7 @@
 """
 import argparse, json, re, subprocess, sys
 from pathlib import Path
+from media_tools import media_tool
 
 
 def run(cmd, **kw):
@@ -16,13 +17,13 @@ def run(cmd, **kw):
 
 
 def probe_duration(p):
-    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+    r = subprocess.run([media_tool("ffprobe"), "-v", "error", "-show_entries", "format=duration",
                         "-of", "default=nw=1:nk=1", str(p)], capture_output=True, text=True, check=True)
     return float(r.stdout.strip())
 
 
 def measure_loudness(p):
-    r = subprocess.run(["ffmpeg", "-v", "info", "-i", str(p), "-af", "loudnorm=print_format=json",
+    r = subprocess.run([media_tool("ffmpeg"), "-v", "info", "-i", str(p), "-af", "loudnorm=print_format=json",
                         "-f", "null", "-"], capture_output=True, text=True)
     m = re.findall(r"\{[^{}]*input_i[^{}]*\}", r.stderr, re.S)
     if not m:
@@ -60,7 +61,7 @@ def main():
 
     out.parent.mkdir(parents=True, exist_ok=True)
     # 只有两个输入：无声画面、旁白。任何配乐/音效都没有进入这条命令的入口。
-    run(["ffmpeg", "-v", "warning", "-y",
+    run([media_tool("ffmpeg"), "-v", "warning", "-y",
          "-i", str(raw), "-i", str(narration),
          "-map", "0:v:0", "-map", "1:a:0",
          "-c:v", "copy", "-af", af, "-c:a", "aac", "-b:a", "192k", "-ar", "48000",

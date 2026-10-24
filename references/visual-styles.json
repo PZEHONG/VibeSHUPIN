@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "default": "S01",
+  "review_styles": {
+    "情感共鸣": "S03",
+    "文学治愈": "S01",
+    "遗憾告别": "S03",
+    "人生感悟": "S01"
+  },
+  "negative": "不要文字、字母、书名、字幕、水印、标志、拼图、多格漫画、广告排版；不要额外人物、面部融合、畸形手、多余肢体、关键道具变形、随机换画材、塑料皮肤、年代不符的服装建筑、无关眼泪与发光粒子。",
+  "styles": {
+    "S01": {
+      "id": "S01",
+      "name": "暖光纸感油画",
+      "material": "手绘油画与细腻纸感，真实可见的厚薄笔触、画布纤维，脸、手与物件清楚，暖灰、赭石与米白，小面积琥珀光，低饱和、克制、有生活质感。",
+      "theme": "flat",
+      "palette": {
+        "background": "#EFE3CC",
+        "paper": "#A99B8A",
+        "ink": "#3A3028",
+        "accent": "#D79B4A",
+        "shadow": "#A46D43",
+        "sub": "#EDE8DE",
+        "gold": "#F8D893",
+        "rose": "#E84B75",
+        "mute": "#A99B8A"
+      },
+      "look": {
+        "bloom": 0.08,
+        "grain": 0.012
+      },
+      "subtitle_font": "serifr"
+    },
+    "S02": {
+      "id": "S02",
+      "name": "森系手绘绘本",
+      "material": "面向成年读者的水粉手绘绘本，鼠尾草绿、苔绿、奶油白和浅杏色，简洁平涂色块、柔软铅笔边缘与纸张颗粒，造型温柔但不幼稚，明确区别于厚涂油画。",
+      "theme": "flat",
+      "palette": {
+        "background": "#F2EBD7",
+        "paper": "#9AA88B",
+        "ink": "#344635",
+        "accent": "#E2B98C",
+        "shadow": "#65765B",
+        "sub": "#EDE8DE",
+        "gold": "#F8D893",
+        "rose": "#E84B75",
+        "mute": "#9AA88B"
+      },
+      "look": {
+        "bloom": 0.02,
+        "grain": 0.008
+      },
+      "subtitle_font": "sansr"
+    },
+    "S03": {
+      "id": "S03",
+      "name": "蓝灰胶片插画",
+      "material": "二维电影分镜感手绘插画，蓝灰、灰青与深蓝主色，一处低亮度琥珀光，细微胶片颗粒、手绘边缘，暗处有层次且物件可辨，克制疏离，不是真人摄影。",
+      "theme": "flat",
+      "palette": {
+        "background": "#202E3C",
+        "paper": "#52616B",
+        "ink": "#E8E6DF",
+        "accent": "#C89251",
+        "shadow": "#344B55",
+        "sub": "#EDE8DE",
+        "gold": "#F8D893",
+        "rose": "#E84B75",
+        "mute": "#52616B"
+      },
+      "look": {
+        "bloom": 0.04,
+        "grain": 0.025
+      },
+      "subtitle_font": "serifr"
+    },
+    "S04": {
+      "id": "S04",
+      "name": "淡彩水彩散文",
+      "material": "透明水彩薄涂在暖白纤维纸上，烟灰蓝、浅褐和淡杏色，局部铅笔轮廓，自然水渍晕染与纸白留空，主体清楚、边缘局部消隐，不是淡滤镜油画。",
+      "theme": "flat",
+      "palette": {
+        "background": "#F5EEDC",
+        "paper": "#A7B7BF",
+        "ink": "#514A41",
+        "accent": "#E8C6A6",
+        "shadow": "#B49A7C",
+        "sub": "#EDE8DE",
+        "gold": "#F8D893",
+        "rose": "#E84B75",
+        "mute": "#A7B7BF"
+      },
+      "look": {
+        "bloom": 0,
+        "grain": 0
+      },
+      "subtitle_font": "serifr"
+    },
+    "S05": {
+      "id": "S05",
+      "name": "黑白版画",
+      "material": "黑白木刻版画，墨黑与纸白块面、粗细变化的实际刻线、纸面纤维和少量暗赭色点缀，构图朴素有力，人物有尊严，不是去色油画或铅笔素描，不美化苦难。",
+      "theme": "flat",
+      "palette": {
+        "background": "#EDE5D4",
+        "paper": "#77756C",
+        "ink": "#171714",
+        "accent": "#9B603A",
+        "shadow": "#41413C",
+        "sub": "#EDE8DE",
+        "gold": "#F8D893",
+        "rose": "#E84B75",
+        "mute": "#77756C"
+      },
+      "look": {
+        "bloom": 0,
+        "grain": 0.005
+      },
+      "subtitle_font": "sansr"
+    },
+    "S06": {
+      "id": "S06",
+      "name": "超现实纸艺",
+      "material": "超现实剪纸拼贴，真实纸纤维、清楚切边、有限层数与柔和层间投影，奶油白、灰蓝、深灰蓝和少量橘色，同一纸张材质，一个清楚隐喻，不是陶土、塑料或游戏渲染。",
+      "theme": "flat",
+      "palette": {
+        "background": "#EDE3CF",
+        "paper": "#8195A1",
+        "ink": "#465D6A",
+        "accent": "#D58B48",
+        "shadow": "#465D6A",
+        "sub": "#EDE8DE",
+        "gold": "#F8D893",
+        "rose": "#E84B75",
+        "mute": "#8195A1"
+      },
+      "look": {
+        "bloom": 0,
+        "grain": 0
+      },
+      "subtitle_font": "sansr"
+    }
+  }
+}

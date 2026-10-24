@@ -21,14 +21,36 @@ scripts/
   check_film.py      终检：画幅、唯一音轨、禁配乐音效、字幕安全区
 ```
 
-工程目录里只有 `index.html` 和 `film.js`。引擎由 `render.py` 内置的小服务器挂在 `/engine/` 下。
+新工程还包含 `art-direction.json/js`、`art-prompts.md` 与 `assets/`。引擎由 `render.py` 内置的小服务器挂在 `/engine/` 下。
 
-可选的外观是两套：`night`（C 夜曲）和 `flat`（B 寓言）。下面出现的 `gilt`（鎏金）和它的年份栏、金字卡还在引擎里——寓言的片名卡和货架图在用——但不再作为一套可选外观。
+## 六套AI绘画工程
+
+新书评使用S01–S06；B/C对应的`night/flat`是兼容旧工程的底层主题。旧组件仍可调用，但不再决定新书评的画风。
+`new_film.py`从`references/visual-styles.json`读六套配置，自动加入`engine/art.js`和`art-direction.js`，生成支持图片的`film.js`。
+
+```bash
+python scripts/new_film.py <工程> --world S01
+# 编辑 art-direction.json：角色、时代、逐镜动作、性质、依据
+python scripts/prepare_art.py <工程>
+# 按 art-prompts.md 使用绘图工具出图到 assets/
+python scripts/prepare_art.py <工程> --check-images
+```
+
+`art-direction.json`是可编辑源，`art-direction.js`是导出物；改源后重新准备。准备脚本不会自动调用绘图API。
+六套的材质来自图片，底色、字幕字族、颗粒和辉光来自统一配置，不能用普通色块假装油画或水彩。
+
+- `VKArt.load(shots)` → Promise<Map>：预加载并解码每个镜头图片。加载成功后才调用`VK.film`；失败写入`window.LOAD_ERROR`，渲染器快速报错。
+- `VKArt.draw(fr,t,shots,images)`：按t选择镜头，段间停顿保持上一镜；开头／结尾保持最近镜头，片尾卡按分镜在`film.js`实现。
+- 图片按cover填满1080×1920；支持`none/push/pull/pan-left/pan-right`和0–0.08的`amount`，每次seek结果一致。
+- 完整图片绘入`fr.look.under`；文字与动作层在其上，最后绘制字幕底板和字幕。需要纸层视差或人物动作时按分镜扩展，不把推拉当成实际动作。
+- 素材路径相对工程，使用正斜杠；支持中文、空格文件名。出图后仍需检查缩放裁切与字幕安全区。
+- 本机Chrome自动检测系统安装；需要指定浏览器位置时设`VIBE_CHROME_PATH`。无需下载另一套浏览器。
+- 终检新工程会验证镜头内容、图片存在与竖幅尺寸、画风导出一致性及片长；视觉质量与事实真实性仍须人工核对。
 
 ## 命令
 
 ```bash
-python scripts/new_film.py <工程目录> --world C|B     # 建工程：index.html + 一份没有画面的 film.js 骨架
+python scripts/new_film.py <工程目录> --world S01     # 建工程：index.html + 绘画清单 + 图片分镜 film.js
 python engine/render.py <工程> --serve                  # 预览 http://127.0.0.1:8765/?play
 python engine/render.py <工程> --stills 2.5 8.5 21      # 截几帧 → review/
 python engine/render.py <工程> --sheet 16               # 全片均匀 16 帧拼一张 → review/sheet.jpg

@@ -18,10 +18,13 @@ scripts/finalize.py 合成。不要配 BGM、不要音效事件（--events 已�
 工程目录里只需要 index.html + film.js。引擎（vk.js、vk-kit.js、fonts/）留在本文件所在目录，
 由内置的小服务器挂到 /engine/ 下 —— 不用往每个工程里拷 40MB 字体，也没有 file:// 的跨目录字体限制。
 """
-import functools, hashlib, http.server, io, json, random, re, subprocess, sys, threading
+import functools, hashlib, http.server, io, json, os, random, re, subprocess, sys, threading
 from pathlib import Path
+from urllib.parse import unquote
 
 ENGINE = Path(__file__).resolve().parent
+sys.path.insert(0, str(ENGINE.parent / "scripts"))
+from media_tools import media_tool
 SIZE = (1920, 1080)
 
 def size_of(proj):
@@ -35,7 +38,7 @@ def size_of(proj):
 class Handler(http.server.SimpleHTTPRequestHandler):
     proj = None
     def translate_path(self, path):
-        p = path.split("?", 1)[0].split("#", 1)[0]
+        p = unquote(path.split("?", 1)[0].split("#", 1)[0])
         if p.startswith("/engine/"): return str(ENGINE / p[len("/engine/"):])
         return str(self.proj / p.lstrip("/")) if p != "/" else str(self.proj / "index.html")
     def do_GET(self):
@@ -51,15 +54,34 @@ def serve(proj, port=0):
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv, f"http://127.0.0.1:{srv.server_address[1]}/"
 
+def browser_options():
+    """优先显式路径，再用Windows系统安装；其他平台沿用Chrome channel。"""
+    configured = os.environ.get("VIBE_CHROME_PATH")
+    if configured:
+        return {"executable_path": configured}
+    if sys.platform == "win32":
+        for candidate in [Path("C:/Program Files/Google/Chrome/Application/chrome.exe"),
+                          Path("C:/Program Files (x86)/Google/Chrome/Application/chrome.exe")]:
+            if candidate.is_file():
+                return {"executable_path": str(candidate)}
+    return {"channel": "chrome"}
+
 def open_page(p, url):
     # 关掉 LCD 次像素抗锯齿（跳着 seek 字边不抖）；每帧等合成器跑完再截；固定 sRGB
-    b = p.chromium.launch(channel="chrome", args=["--disable-lcd-text", "--run-all-compositor-stages-before-draw", "--force-color-profile=srgb"])
+    b = p.chromium.launch(**browser_options(), args=["--disable-lcd-text", "--run-all-compositor-stages-before-draw", "--force-color-profile=srgb"])
     pg = b.new_page(viewport={"width": SIZE[0], "height": SIZE[1]}, device_scale_factor=1)
     pg.on("console", lambda m: m.type in ("error", "warning") and print("[page]", m.text))
     pg.on("pageerror", lambda e: print("[pageerror]", e))
-    pg.goto(url)
-    pg.wait_for_function("window.READY === true", timeout=180000)
-    return b, pg
+    try:
+        pg.goto(url)
+        pg.wait_for_function("window.READY === true || !!window.LOAD_ERROR", timeout=180000)
+        error = pg.evaluate("window.LOAD_ERROR || null")
+        if error:
+            raise RuntimeError(f"绘画素材加载失败：{error}")
+        return b, pg
+    except Exception:
+        b.close()
+        raise
 
 def shot(pg, t):
     pg.evaluate(f"seek({t})")
@@ -102,7 +124,7 @@ def frames(proj, out, a=0.0, b=None):
     def go(pg):
         end, fps = pg.evaluate("END"), pg.evaluate("FPS")
         bb = end if b is None else min(b, end)
-        ff = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "image2pipe", "-framerate", str(fps), "-i", "-",
+        ff = subprocess.Popen([media_tool("ffmpeg"), "-v", "error", "-y", "-f", "image2pipe", "-framerate", str(fps), "-i", "-",
                                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "14", "-preset", "medium", "-movflags", "+faststart", str(out)], stdin=subprocess.PIPE)
         n0, n1 = round(a * fps), round(bb * fps)
         for i in range(n0, n1):
@@ -123,7 +145,7 @@ def frames_parallel(proj, out, jobs):
         procs.append(subprocess.Popen(cmd, stdout=subprocess.DEVNULL if i else None))
     if any(p.wait() for p in procs): sys.exit("有一段渲染失败了，先单独跑 --clip 看报错")
     lst = proj / "renders/_parts.txt"; lst.write_text("".join(f"file '{p.as_posix()}'\n" for p in parts), encoding="utf-8")
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", "-movflags", "+faststart", str(out)], check=True)
+    subprocess.run([media_tool("ffmpeg"), "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", "-movflags", "+faststart", str(out)], check=True)
     for p in parts + [lst]: p.unlink()
     print("done", out, f"{end:.2f}s", f"({jobs} 路并行)")
 

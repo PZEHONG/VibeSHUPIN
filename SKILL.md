@@ -12,7 +12,7 @@ description: >
 # 竖屏书评短片工作流
 
 交付物：一个工程目录（`script.json` + `storyboard.md` + `film.js` + `audio/narration.wav` + `renders/final.mp4`），
-加上事实表。成片 = 画面 + 温暖男声旁白，**没有别的声音**。
+加上事实表、art-direction.json、art-prompts.md 和 assets/ 分镜图。成片 = 画面 + 温暖男声旁白，**没有别的声音**。
 
 ## 一条硬规矩
 
@@ -56,25 +56,49 @@ Key 写在根目录 `.env` 的 `FISH_API_KEY`。语速 `--speed 0.9` 更克制�
 
 ### 4. 选外观：跟着文案风格走
 
-遗憾告别 / 文学治愈 → **C 夜曲**；情感共鸣 → **B 寓言**；人生感悟看有没有具体生活场景。拿不准选 C。
-同时定下颜色含义（金 = 关键意象，玫红 = 痛），全片不破例。规格在 `references/worlds.md`。
+从 **S01–S06** 选择主画风：S01暖光纸感油画、S02森系手绘绘本、S03蓝灰胶片插画、S04淡彩水彩散文、S05黑白版画、S06超现实纸艺。
+文学治愈优先S01（轻盈接纳用S02）；情感共鸣／遗憾告别优先S03（回忆散文用S04）；人生感悟优先S01（现实题材用S05，抽象观念用S06）。
+以书籍事实和用户指定为先，一片一套；不确定用S01，不强制结尾转暖。
 
-### 5. 建工程，做分镜（9:16）
+在 `script.json` 写 `"visual_style": "S01"`；也可用 `review_style` 指定四类文风，省略画风时脚本按映射选择。
+显式 `--world` 优先于 `visual_style`，最后才按 `review_style` 映射或默认S01。
+详细材质、提示词和验收见 `references/worlds.md`；机器使用的统一配置是 `references/visual-styles.json`。
+字幕染色含义保持金=关键意象、玫红=痛；场景画材不套旧版星点或仪表。
+
+### 5. 建工程、AI出图、做分镜（9:16）
 
 ```bash
-python scripts/new_film.py <工程> --world C        # 已配好音的话，自动带入片长和分段字幕
-python engine/render.py <工程> --sheet 16          # 全片拼图
-python engine/render.py <工程> --stills 5.9 18.1   # 原尺寸静帧
-python engine/render.py <工程> --motion 8.2 10.6   # 转场连拍
-python engine/render.py <工程> --serve             # 浏览器预览
+python scripts/new_film.py <工程> --world S01      # S01–S06；已配音时自动带入真实片长与分段
 ```
 
-`film.js` 的 `DUR` 必须等于 `timings.json` 的 `duration`。画幅由 `index.html` 的 `VK_SIZE=[1080,1920]` 决定，渲染自动匹配。
-坐标和三条竖屏跑道看 `references/vertical.md`；引擎 API 看 `references/engine.md`。
-先做最难的一镜，再铺全片；每镜都现写，不搬别的片子的画面。
+自动生成 `art-direction.json`（绘画清单）、`art-direction.js`（浏览器清单）、`art-prompts.md`（草稿提示词）、`assets/`、`film.js` 和 `index.html`。
+已有分镜表保留；没有时生成待补全初稿，不能把初稿当成完成的分镜。
 
-过关：遮字幕过三问（这是什么 / 它在干什么 / 我明白了什么）；至少改两轮；
-`--det` 通过；全片 `--jobs 4` 渲出 `renders/raw.mp4`。
+1. 按分镜补全 `art-direction.json` 的角色、时代地域和逐镜场景、动作、情绪、景别、画面性质及依据。
+2. 运行下列准备命令，获得含固定画材与人物设定的完整逐镜提示词。
+3. 用可用的AI绘图工具逐镜生成图片：先审代表镜头，再复用角色参考图铺全片。按清单保存至 `assets/`；脚本不会调用付费绘图API或假装已经出图。
+4. 保留“原著场景／读者生活映射／情绪隐喻”标签；原著场景必须有依据。需精确文字时后期排版。
+5. 出图后验证尺寸与路径，按分镜补足真实动作。仅有推拉不等于动词已经发生。
+
+```bash
+python scripts/prepare_art.py <工程>                 # 补全清单后导出逐镜提示词
+# 用绘图工具执行 art-prompts.md，把图片保存到各镜的 image 路径
+python scripts/prepare_art.py <工程> --check-images  # 检查素材并同步浏览器清单
+python engine/render.py <工程> --sheet 16
+python engine/render.py <工程> --stills 5.9 18.1
+python engine/render.py <工程> --motion 8.2 10.6
+python engine/render.py <工程> --serve
+```
+
+图片加载完成后才开始渲染；缺图立即报错。六套的底色、字幕字族、颗粒和辉光按统一配置生效，油画／水彩等材质来自生成的图片。
+`film.js` 的 `DUR`、绘画清单的 `duration` 必须等于 `timings.json` 的 `duration`。重配旁白后同步镜头和字幕。
+换画风：修改 `art-direction.json` 的 `style`，重新准备、出图和验证；不用覆盖已有 `film.js`。风格变更本身不会重绘已存在图片。
+
+坐标看 `references/vertical.md`，图片接口与引擎看 `references/engine.md`。
+先做最难的一镜，再铺全片；每镜按本书重写，不搬其他影片画面。
+
+过关：素材与画风清单一致；遮字幕过三问；至少改两轮；`--det`通过，再用`--jobs 4`渲出`renders/raw.mp4`。
+B/C仅为旧工程兼容参数，不作为新书评默认选项。
 
 ### 6. 适配字幕
 
@@ -108,9 +132,11 @@ python scripts/check_film.py <工程>                # 自动项 FAIL 就必须�
 | `references/visualization.md` | 找形象、六种画法、什么时候不画、看图改图的毛病表 |
 | `references/visual-grammar.md` | 定了画法之后的速查：句型、版式、常驻元素、转场、动效手感 |
 | `references/script.md` | 文案的量、骨架、句式、事实、标题 |
-| `references/worlds.md` | C 夜曲 / B 寓言两套外观规格 |
+| `references/worlds.md` | S01–S06 六套绘画外观、提示词与验收规格 |
 | `references/engine.md` | 引擎 API、命令、坑（含本工作流与通用引擎的差异） |
 | `engine/` | `vk.js` `vk-kit.js` `render.py` `index.html` `get_fonts.py` `fonts/`（已自带字体） |
+| `references/visual-styles.json` | 六套画风统一配置 |
+| `scripts/prepare_art.py` | 校验分镜并导出逐镜提示词与浏览器素材清单 |
 | `scripts/` | `new_film.py` 建 9:16 工程 · `make_voiceover.py` 温暖男声旁白 · `finalize.py` 只合人声 · `check_film.py` 终检 |
 | `projects/` | 每条片一个工程目录 |
 

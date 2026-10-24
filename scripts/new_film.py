@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """建一个新的竖屏书评工程：
-  python scripts/new_film.py <工程目录> --world C|B [--force]
-C 夜曲（夜里的一盏灯、纸、剪影；克制、文学感）· B 寓言（扁平插画、生活场景）。怎么选见 references/worlds.md。
+  python scripts/new_film.py <工程目录> --world S01–S06 [--force]
+S01–S06：六套AI绘画外观，默认S01；C/B仅兼容旧工程。怎么选见 references/worlds.md。
 
-工程里是 9:16 的 index.html 和一份只能跑起来的 film.js 骨架——里面一行画面都没有。
+S01–S06 工程带绘画清单、提示词和图片加载骨架；B/C保留旧骨架。
 文案不同，屏上的东西就不同：每一镜照 storyboard.md 现写，不要从别的片子里搬画面。
 若 <工程>/audio/timings.json 已存在（先配好音），骨架会带入片长和按旁白分段预填的字幕。
 引擎留在工作区的 engine/ 里，由 engine/render.py 挂载；本工作流不依赖任何外部项目。
@@ -93,23 +93,109 @@ def timings_subs(proj):
         lines.append(f"  {{ a: {s['start']:.2f}, b: {s['end']:.2f}, zh: '{text}' }},   // {s['id']}：按真实停顿再拆短")
     return data["duration"], "\n".join(lines)
 
-if __name__ == "__main__":
-    a = sys.argv[1:]
-    if len(a) < 1 or a[0].startswith("-"): sys.exit(__doc__)
-    proj = Path(a[0]).resolve(); world = (a[a.index("--world") + 1] if "--world" in a else "C").upper()
-    if world not in WORLD: sys.exit("--world 只能是 C 或 B")
+
+def create_art_project(proj, style, script, force):
+    from visual_styles import read_json, write_json, validate_art, export_art
+    if (proj / "art-direction.json").exists():
+        art = read_json(proj / "art-direction.json")
+        art["style"] = style
+    else:
+        timing_path = proj / "audio/timings.json"
+        timing = read_json(timing_path) if timing_path.exists() else None
+        duration = timing["duration"] if timing else 60
+        segments = timing.get("segments", []) if timing else []
+        if not segments:
+            segments = [{"id": "shot-001", "start": 0, "end": duration, "text": ""}]
+        art = {
+            "schema_version": 1, "style": style, "duration": duration,
+            "title": script.get("book_title") or script.get("title") or proj.name,
+            "visual": {"characters": "", "era_location": "", "anchors": [], "references": []},
+            "shots": [
+                {"id": f"shot-{i:03d}", "start": segment["start"], "end": segment["end"],
+                 "narration": segment.get("text", ""), "kind": "", "evidence": "",
+                 "scene": "", "action": "", "emotion": "", "framing": "中景", "anchor": "",
+                 "image": f"assets/shot-{i:03d}.png", "reference_images": [],
+                 "motion": {"type": "push", "amount": .025}}
+                for i, segment in enumerate(segments, 1)
+            ]
+        }
+    timing_path = proj / "audio/timings.json"
+    if timing_path.exists() and abs(read_json(timing_path)["duration"] - art["duration"]) > .05:
+        raise ValueError("已有绘画清单与真实旁白片长不同，请先调整 art-direction.json 的镜头时间")
+    errors = validate_art(art, proj, ready=False)
+    if errors:
+        raise ValueError("\n".join(errors))
+    subs = []
+    if timing_path.exists():
+        for s in read_json(timing_path)["segments"]:
+            subs.append({"a": s["start"], "b": s["end"], "zh": s["text"]})
+    film_template = (ROOT / "scripts/film_template.js").read_text(encoding="utf-8")
+    film = film_template.replace("__DURATION__", json.dumps(art["duration"]))
+    film = film.replace("__SUBS__", json.dumps(subs, ensure_ascii=False, indent=2))
+    html = (ROOT / "engine/index.html").read_text(encoding="utf-8")
+    html = html.replace('<script src="film.js"></script>',
+                        '<script src="engine/art.js"></script>\n'
+                        '<script src="art-direction.js"></script>\n<script src="film.js"></script>')
     proj.mkdir(parents=True, exist_ok=True)
-    film = proj / "film.js"
-    if film.exists() and "--force" not in a: sys.exit(f"{film} 已经存在。要覆盖加 --force")
-    name, theme, pal, standing = WORLD[world]
-    dur, sub_lines = timings_subs(proj)
-    shutil.copy(ROOT / "engine/index.html", proj / "index.html")
-    film.write_text(SKELETON.format(name=name, theme=theme, subs=sub_lines, pal=pal, standing=standing, dur=dur), encoding="utf-8", newline="\n")
-    render = ROOT / "engine/render.py"
-    print(f"建好了：{proj}（{name}，1080×1920，片长 {dur}s）\n"
-          f"  预览  python \"{render}\" \"{proj}\" --serve\n"
-          f"  拼图  python \"{render}\" \"{proj}\" --sheet 16\n"
-          f"  渲染  python \"{render}\" \"{proj}\" --jobs 4\n"
-          f"  合成  python \"{ROOT / 'scripts/finalize.py'}\" \"{proj}\"\n"
-          f"  终检  python \"{ROOT / 'scripts/check_film.py'}\" \"{proj}\"\n"
-          f"下一步：film.js 里现在一行画面都没有。照 storyboard.md，从最难画的那一镜写起。")
+    (proj / "assets").mkdir(exist_ok=True)
+    (proj / "index.html").write_text(html, encoding="utf-8")
+    (proj / "film.js").write_text(film, encoding="utf-8")
+    write_json(proj / "art-direction.json", art)
+    export_art(art, proj, draft=True)
+    if not (proj / "storyboard.md").exists():
+        rows = [
+            f"# {art['title']} · 分镜表", "", f"画风：{style}；1080×1920 / 30fps",
+            "", "成片只有温暖男声旁白，无配乐无音效。下表是初稿，补全后才出图。", "",
+            "| 镜头 | 真实时间 | 旁白 | 画面／动作 | 观众明白什么 | 画面性质与依据 | 素材 |",
+            "|---|---|---|---|---|---|---|",
+        ]
+        for shot in art["shots"]:
+            text = shot["narration"].replace("|", "／").replace("\n", " ")
+            rows.append(f"| {shot['id']} | {shot['start']}–{shot['end']} | {text} | 待填写 | 待填写 | 待确认 | {shot['image']} |")
+        rows += ["", "## 事实", "", "逐条写明出处；不编造原著引文与情节。", "",
+                 "## 示意", "", "逐镜标明生活映射或情绪隐喻，不当成原著场景。", "",
+                 "## 视觉设定", "", "在 art-direction.json 补全角色、时代地域、锚点和参考图。", ""]
+        (proj / "storyboard.md").write_text("\n".join(rows), encoding="utf-8")
+    return art
+
+
+def main():
+    import argparse
+    from visual_styles import select_style, read_json
+    parser = argparse.ArgumentParser(description="建9:16书评工程：S01–S06，B/C兼容旧工程")
+    parser.add_argument("project")
+    parser.add_argument("--world", help="S01–S06；省略时读script.json，最终默认S01")
+    parser.add_argument("--force", action="store_true", help="重建film.js；保留分镜表和绘画清单内容")
+    args = parser.parse_args()
+    proj = Path(args.project).resolve()
+    try:
+        script = read_json(proj / "script.json") if (proj / "script.json").exists() else {}
+        if not isinstance(script, dict):
+            raise ValueError("script.json 必须为JSON对象")
+        if args.world is None and args.force and not script.get("visual_style") and (proj / "art-direction.json").exists():
+            script = {**script, "visual_style": read_json(proj / "art-direction.json").get("style")}
+        style = select_style(args.world, script)
+        if (proj / "film.js").exists() and not args.force:
+            raise ValueError("film.js 已经存在；重建需显式 --force，不会覆盖已有分镜表")
+        if style in WORLD:
+            if (proj / "art-direction.json").exists():
+                raise ValueError("已有六套画风清单；兼容B/C请使用新工程目录")
+            name, theme, pal, standing = WORLD[style]
+            dur, sub_lines = timings_subs(proj)
+            film = SKELETON.format(name=name, theme=theme, subs=sub_lines, pal=pal, standing=standing, dur=dur)
+            proj.mkdir(parents=True, exist_ok=True)
+            shutil.copy(ROOT / "engine/index.html", proj / "index.html")
+            (proj / "film.js").write_text(film, encoding="utf-8", newline="\n")
+        else:
+            art = create_art_project(proj, style, script, args.force)
+            print(f"{style} · 绘画清单与提示词已生成，片长{art['duration']}s。")
+            print("下一步：补全 art-direction.json → prepare_art.py → 按提示词逐镜出图到 assets/。")
+        print(f"工程：{proj}；图片准备好后运行 engine/render.py 预览与渲染。")
+    except (ValueError, OSError, KeyError, TypeError) as exc:
+        print(f"建工程失败：{exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -29,9 +29,13 @@ cp .env.example .env    # 然后填入你的 FISH_API_KEY
 python scripts/make_voiceover.py projects/<片名> --check
 python scripts/make_voiceover.py projects/<片名> --speed 0.9
 # 3. 分镜表：按 audio/timings.json 写 projects/<片名>/storyboard.md
-# 4. 外观：遗憾告别/文学治愈 → C 夜曲；情感共鸣 → B 寓言
+# 4. 选S01–S06：治愈S01/02，遗憾S03/04，现实S05，抽象S06
 # 5. 建工程 + 画分镜（1080×1920）
-python scripts/new_film.py projects/<片名> --world C
+python scripts/new_film.py projects/<片名> --world S01
+# 补全 art-direction.json 的角色、场景、动作、画面性质与依据
+python scripts/prepare_art.py projects/<片名>
+# 用AI绘图工具按 art-prompts.md 出图，保存到 assets/
+python scripts/prepare_art.py projects/<片名> --check-images
 python engine/render.py projects/<片名> --sheet 16
 python engine/render.py projects/<片名> --stills 5.9 18.1
 python engine/render.py projects/<片名> --det
@@ -43,6 +47,21 @@ python scripts/check_film.py projects/<片名>
 ```
 
 产物：`projects/<片名>/renders/final.mp4`（1080×1920 / 30fps / h264 + aac 单音轨旁白，约 -16 LUFS）。
+
+## 六套画风
+
+| 参数 | 画风 |
+|---|---|
+| S01（默认） | 暖光纸感油画 |
+| S02 | 森系手绘绘本 |
+| S03 | 蓝灰胶片插画 |
+| S04 | 淡彩水彩散文 |
+| S05 | 黑白版画 |
+| S06 | 超现实纸艺 |
+
+也可在script.json写visual_style或review_style，由脚本选择；显式--world优先。B/C只兼容旧工程。
+材质来自实际AI图片；准备脚本导出完整提示词，绘图工具负责出图。图片齐全后再渲染，缺图会报错。
+修改art-direction.json的style后重新准备并出图，已有图片不会自动重绘。规格见references/worlds.md。
 
 ## 目录
 
