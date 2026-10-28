@@ -63,13 +63,13 @@ class WorkflowTests(unittest.TestCase):
     def test_default_and_review_style_mapping_and_explicit_override(self):
         self.project.mkdir()
         (self.project / "script.json").write_text(json.dumps({"review_style": "遗憾告别"}), encoding="utf-8")
-        result = self.cli("new_film.py", self.project)
+        result = self.cli("new_film.py", self.project, "--renderer", "canvas")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.manifest()["style"], "S03")
         self.cli("new_film.py", self.project, "--world", "S05", "--force")
         self.assertEqual(self.manifest()["style"], "S05")
         self.project = Path(self.temp.name) / "default"
-        self.assertEqual(self.cli("new_film.py", self.project).returncode, 0)
+        self.assertEqual(self.cli("new_film.py", self.project, "--renderer", "canvas").returncode, 0)
         self.assertEqual(self.manifest()["style"], "S01")
 
     def test_legacy_worlds_remain_available(self):

@@ -86,6 +86,21 @@ class BrowserWorkflowTests(unittest.TestCase):
             finally:
                 browser.close()
 
+    def test_shot_preserves_pixels_and_captures_current_frame_after_random_seek(self):
+        project = self.fixture("S06")
+        render.SIZE = (1080, 1920)
+        def inspect(page):
+            times = [.4, 1.0, 2.7]
+            references = {}
+            for t in times:
+                page.evaluate(f"seek({t})")
+                references[t] = Image.open(io.BytesIO(page.screenshot(type="png"))).convert("RGBA").tobytes()
+            for t in reversed(times):
+                frame = Image.open(io.BytesIO(render.shot(page, t))).convert("RGBA")
+                self.assertEqual(frame.size, (1080, 1920))
+                self.assertEqual(frame.tobytes(), references[t], f"错误时间或有损截图：{t}s")
+        render.with_page(project, inspect)
+
     def test_render_cli_exports_vertical_h264_without_audio(self):
         project = self.fixture("S04")
         result = subprocess.run([sys.executable, str(ROOT / "engine/render.py"), str(project),

@@ -65,13 +65,22 @@ def post_tts(text, voice, model, speed=1.0, timeout=180):
         },
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            data = r.read()
-            ct = r.headers.get("Content-Type", "")
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode("utf-8", "replace")[:500]
-        sys.exit(f"Fish Audio HTTP {e.code}: {detail}")
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                data = r.read()
+                ct = r.headers.get("Content-Type", "")
+            break
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode("utf-8", "replace")[:500]
+            if e.code < 500 or attempt == 2:
+                sys.exit(f"Fish Audio HTTP {e.code}: {detail}")
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            if attempt == 2:
+                sys.exit(f"Fish Audio 网络错误：{e}")
+        time.sleep(1.5 * (attempt + 1))
+    else:
+        sys.exit("Fish Audio 重试后仍无返回")
     if not data or len(data) < 2000:
         sys.exit(f"返回不像音频（{len(data)} bytes, {ct}）：{data[:300]!r}")
     return data

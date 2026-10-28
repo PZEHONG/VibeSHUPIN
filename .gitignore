@@ -16,3 +16,11 @@ Thumbs.db
 .vscode/
 *.tmp
 *.bak
+
+# Remotion dependencies and generated, reproducible staging/build files
+remotion/node_modules/
+remotion/public/
+remotion/.cache/
+remotion/.remotion/
+remotion/studio-props.json
+remotion/build/

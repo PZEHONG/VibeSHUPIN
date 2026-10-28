@@ -1,5 +1,7 @@
 # 引擎
 
+> **当前默认已迁移到纯 Remotion**：新入口为 `scripts/render_remotion.py`，可编辑源为 `motion.json`；详见 [Remotion 引擎指南](remotion.md)。下文保留历史 Canvas 引擎接口，用于旧工程及显式 `--renderer canvas` / `--world`。
+
 > **本书评工作流与通用引擎的差异**：画幅固定 1080×1920（`index.html` 里 `window.VK_SIZE=[1080,1920]`，`render.py` 自动读取）；
 > 声音只有温暖男声旁白——没有 `audio.py`、没有 `--events`、不写 `fr.sfx`；人声由 `scripts/make_voiceover.py` 生成，
 > `scripts/finalize.py` 合成，`scripts/check_film.py` 终检。字幕用 `new_film.py` 骨架里的 `drawSubs`（位置 `SUB_Y`），规范见 `references/vertical.md`。
@@ -23,21 +25,21 @@ scripts/
 
 新工程还包含 `art-direction.json/js`、`art-prompts.md` 与 `assets/`。引擎由 `render.py` 内置的小服务器挂在 `/engine/` 下。
 
-## 六套AI绘画工程
+## 七套AI绘画工程
 
-新书评使用S01–S06；B/C对应的`night/flat`是兼容旧工程的底层主题。旧组件仍可调用，但不再决定新书评的画风。
-`new_film.py`从`references/visual-styles.json`读六套配置，自动加入`engine/art.js`和`art-direction.js`，生成支持图片的`film.js`。
+新书评使用S01–S07；B/C对应的`night/flat`是兼容旧工程的底层主题。旧组件仍可调用，但不再决定新书评的画风。
+`new_film.py`从`references/visual-styles.json`读七套配置，自动加入`engine/art.js`和`art-direction.js`，生成支持图片、书名卡、可选英文副行与尾卡的`film.js`。
 
 ```bash
 python scripts/new_film.py <工程> --world S01
-# 编辑 art-direction.json：角色、时代、逐镜动作、性质、依据
+# 编辑 art-direction.json：角色、时代、母题、色彩走向、逐镜动作/性质/role/依据
 python scripts/prepare_art.py <工程>
 # 按 art-prompts.md 使用绘图工具出图到 assets/
 python scripts/prepare_art.py <工程> --check-images
 ```
 
 `art-direction.json`是可编辑源，`art-direction.js`是导出物；改源后重新准备。准备脚本不会自动调用绘图API。
-六套的材质来自图片，底色、字幕字族、颗粒和辉光来自统一配置，不能用普通色块假装油画或水彩。
+七套的材质来自图片，底色、字幕字族、颗粒、辉光和暗角来自统一配置，不能用普通色块假装油画、水彩或胶片。
 
 - `VKArt.load(shots)` → Promise<Map>：预加载并解码每个镜头图片。加载成功后才调用`VK.film`；失败写入`window.LOAD_ERROR`，渲染器快速报错。
 - `VKArt.draw(fr,t,shots,images)`：按t选择镜头，段间停顿保持上一镜；开头／结尾保持最近镜头，片尾卡按分镜在`film.js`实现。

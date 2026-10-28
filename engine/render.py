@@ -18,7 +18,7 @@ scripts/finalize.py 合成。不要配 BGM、不要音效事件（--events 已�
 工程目录里只需要 index.html + film.js。引擎（vk.js、vk-kit.js、fonts/）留在本文件所在目录，
 由内置的小服务器挂到 /engine/ 下 —— 不用往每个工程里拷 40MB 字体，也没有 file:// 的跨目录字体限制。
 """
-import functools, hashlib, http.server, io, json, os, random, re, subprocess, sys, threading
+import base64, functools, hashlib, http.server, io, json, os, random, re, subprocess, sys, threading
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -85,7 +85,16 @@ def open_page(p, url):
 
 def shot(pg, t):
     pg.evaluate(f"seek({t})")
-    return pg.screenshot(type="png")
+    # PNG仍然无损；减少高纹理画面的压缩耗时，单页复用协议连接。
+    session = getattr(pg, "_vibe_png_session", None)
+    if session is None:
+        session = pg.context.new_cdp_session(pg)
+        pg._vibe_png_session = session
+    result = session.send("Page.captureScreenshot", {
+        "format": "png", "optimizeForSpeed": True,
+        "captureBeyondViewport": False, "fromSurface": True,
+    })
+    return base64.b64decode(result["data"], validate=True)
 
 def with_page(proj, fn):
     from playwright.sync_api import sync_playwright

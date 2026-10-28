@@ -140,6 +140,29 @@
         "grain": 0
       },
       "subtitle_font": "sansr"
+    },
+    "S07": {
+      "id": "S07",
+      "name": "电影静帧",
+      "material": "真人电影静帧质感：35mm 胶片、单一主光源、浅景深、前中后景分层，低饱和电影调色，细腻胶片颗粒与轻微暗角；人物、皮肤、衣物与空间必须真实，不要插画、塑料皮肤、游戏渲染或过度磨皮。",
+      "theme": "flat",
+      "palette": {
+        "background": "#101014",
+        "paper": "#2A2C31",
+        "ink": "#F2EEE6",
+        "accent": "#C9975A",
+        "shadow": "#1A1B1F",
+        "sub": "#F6EFE2",
+        "gold": "#F0C97A",
+        "rose": "#E86B5A",
+        "mute": "#5A5F66"
+      },
+      "look": {
+        "bloom": 0.1,
+        "grain": 0.035,
+        "vignette": 0.32
+      },
+      "subtitle_font": "serifr"
     }
   }
 }

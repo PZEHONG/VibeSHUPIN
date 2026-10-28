@@ -44,6 +44,9 @@ def main():
     ap.add_argument("--no-audio", action="store_true")
     args = ap.parse_args()
     proj = Path(args.project).resolve()
+    if (proj / "motion.json").is_file():
+        from check_motion_film import report_motion
+        sys.exit(report_motion(proj, args.no_audio, args.json, probe, loudness))
     results = []
 
     def check(name, ok, detail="", warn=False):
@@ -67,7 +70,7 @@ def main():
         try:
             art = read_json(art_path)
             art_errors = validate_art(art, proj, images=True)
-            check("六套画风分镜与素材完整（含竖幅尺寸）", not art_errors, "；".join(art_errors[:12]))
+            check("七套画风分镜与素材完整（含竖幅尺寸）", not art_errors, "；".join(art_errors[:12]))
             manifest_js = (proj / "art-direction.js").read_text(encoding="utf-8")
             prefix, suffix = "window.ART_DIRECTION = ", ";\n"
             payload = json.loads(manifest_js.removeprefix(prefix).removesuffix(suffix))
@@ -83,7 +86,7 @@ def main():
                       abs(read_json(timing_path)["duration"] - art["duration"]) < .05,
                       "请按真实旁白重排绘画分镜")
         except (ValueError, OSError, KeyError, TypeError) as exc:
-            check("六套画风分镜与素材清单可读取", False, str(exc))
+            check("七套画风分镜与素材清单可读取", False, str(exc))
 
     m = re.search(r"VK_SIZE\s*=\s*\[\s*(\d+)\s*,\s*(\d+)\s*\]", html)
     check("画幅声明 window.VK_SIZE=[1080,1920]", bool(m) and (m.group(1), m.group(2)) == ("1080", "1920"),
@@ -125,15 +128,16 @@ def main():
     if json_subs:
         try:
             values = json.loads(json_subs.group(1))
-            subs = [(s["a"], s["b"], s["zh"]) for s in values]
+            subs = [(s["a"], s["b"], s["zh"], s.get("en", "")) for s in values]
         except (ValueError, KeyError, TypeError):
             pass
     if subs is None:
         subs = re.findall(r"\{\s*a:\s*([\d.]+),\s*b:\s*([\d.]+),\s*zh:\s*'((?:[^'\\]|\\.)*)'", film)
+        subs = [(a, b, zh, "") for a, b, zh in subs]
 
     check("字幕条目 SUBS 非空", len(subs) > 0, f"共 {len(subs)} 条")
     problems, prev_b = [], 0.0
-    for a, b, zh in subs:
+    for a, b, zh, en in subs:
         a, b = float(a), float(b)
         if b <= a: problems.append(f"{a}–{b} 起止反了")
         if a < prev_b - 0.02: problems.append(f"{a} 与上一条重叠")
@@ -142,16 +146,26 @@ def main():
             visible = len(re.sub(r"\{!?", "", ln).replace("}", ""))
             if visible > 18: problems.append(f"「{ln[:20]}」{visible} 字，一行太长")
         if zh.replace("\\n", "\n").count("\n") > 1: problems.append(f"「{zh[:16]}」超过两行")
+        if en:
+            if "\n" in en or len(en) > 60:
+                problems.append(f"英文副行需单行且≤60字符：{en[:30]}")
+            if "\n" in zh.replace("\\n", "\n"):
+                problems.append(f"英文副行只配单行中文：{zh[:16]}")
         prev_b = b
-    check("字幕逐条合法（顺序 / 不重叠 / 不超片长 / 一行≤18字 / 最多两行）", not problems, "；".join(problems[:8]))
+    check("字幕逐条合法（顺序 / 不重叠 / 不超片长 / 一行≤18字 / 最多两行 / 英文副行单行≤60字符）",
+          not problems, "；".join(problems[:8]))
 
     my = re.search(r"\bSUB_Y\s*=\s*([\d.]+)", film)
     if my:
         y = float(my.group(1))
-        bottom = y + 46 * 1.42 / 2 + 46 * 0.38      # 两行字幕的估算底边
-        check("字幕在中下、不贴底（SUB_Y≈0.79H，两行底边≤0.83H）",
-              0.74 * H <= y <= 0.82 * H and bottom <= 0.83 * H,
-              f"SUB_Y={y}，两行底边估算 {bottom:.0f}/{H}（底部 18% 是抖音 UI 区）")
+        bottom = y + 68 * 1.38 / 2 + 68 * 0.38      # 两行中文的估算底边
+        has_en = any(en for _, _, _, en in subs)
+        en_bottom = y - 34 + 92 + 27 * 0.62          # 单行中文 + 英文副行
+        check("字幕在中下、不贴底（SUB_Y≈0.78H，底边≤0.83H）",
+              0.74 * H <= y <= 0.82 * H and bottom <= 0.83 * H
+              and (not has_en or en_bottom <= 0.83 * H),
+              f"SUB_Y={y}，两行底边估算 {bottom:.0f}/{H}，英文副行底边 {en_bottom:.0f}/{H}"
+              "（底部 18% 是抖音 UI 区）")
     else:
         check("字幕位置收成 SUB_Y 常量", False, "不要每行字幕各写各的 y")
 

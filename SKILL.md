@@ -2,17 +2,35 @@
 name: vibe-book-review-film
 description: >
   抖音竖屏书评短片：9:16（1080×1920）、温暖男声旁白、观众读中下部两行字幕，同时看屏上把这句话演出来。
-  全流程七步：emotional-book-review 出文案 → Fish Audio 温暖男声配音 → 按真实时间轴写分镜表 → 按风格选外观 →
-  建 9:16 工程逐帧画分镜（Canvas + seek(t) + Playwright + ffmpeg）→ 适配字幕 → 终检出片。
+  新默认：emotional-book-review 出文案（先交用户确认）→ Fish Audio 温暖男声配音 → 按真实时间轴写动态分镜表 →
+  Remotion 9:16 混合素材、按帧动画与字幕→ 合入唯一旁白 → 终检出片。Canvas生图仅兼容旧工程。
   声音只有旁白：禁止伴奏、禁止音效、禁止第二音源。
   用户说"做一条书评视频""把这篇书评做成抖音短片""给这本书出 60 秒口播视频""竖屏书评""白夜行那种书单视频"，
   或者给了书名 / 书评文案要做成成片时使用。只做 9:16 竖屏，只要温暖男声，不配乐。
 ---
 
-# 竖屏书评短片工作流
+# 竖屏书评视频工作流
 
-交付物：一个工程目录（`script.json` + `storyboard.md` + `film.js` + `audio/narration.wav` + `renders/final.mp4`），
-加上事实表、art-direction.json、art-prompts.md 和 assets/ 分镜图。成片 = 画面 + 温暖男声旁白，**没有别的声音**。
+新默认交付物：一个工程目录（`script.json` + `storyboard.md` + `motion.json` + `audio/narration.wav` + `audio/timings.json` + `renders/final.mp4`），
+加上事实与隐喻清单、静帧审查和渲染来源记录。成片 = 画面 + 温暖男声旁白，**没有别的声音**。
+
+## 当前默认：Remotion 动态书评
+
+当前默认逐书设计视觉方案，优先用 Remotion 原生图形与逐帧动画制作动态叙事。新工程使用 CUSTOM，每期按内容设计场景、动作和风格；图片、视频仅按用户需要选用，不把单图推拉当作动态表演。先制作有旁白的代表片段并审看，再扩展长片。事实、隐喻和示意需区分。具体能力和限制见 [混合素材指南](references/remotion-mixed.md)。历史 M01/M02 保留兼容。每个新故事可编写专属场景，不能把既有画风或场景当固定模板。
+
+1. 沿用下文「文案确认门」及文案事实核查要求。文案确认后才写 script.json 和配音。
+2. 用 `make_voiceover.py` 产生唯一旁白与真实 timings.json；已有确认工程可复用音频，不重配音。
+3. 按真实停顿写 storyboard.md：物体、动作、观众理解、画面性质、原著依据。不得平均切镜或改写原著迁就动画。
+4. 历史工程可选外观 M01 文学纸艺：暖纸、炭黑剪影、旧金；可选 M02 厚涂油画：满幅竖屏油画、赭石、暗蓝、程序笔触与画布纹理，仅在旁白字幕区域压暗、使用浅字。M02 不放常驻书名/作者、章节标题、重复解说、片名/收尾文字卡或底部英文装饰；绘画延伸到字幕下方和画面四边。新建油画工程用 `new_film.py <工程> --theme M02`。这两套历史程序场景不调用生图；逐书设计场景，不套旧 S01–S07 画材名称。
+5. `python scripts/new_film.py <工程>` 生成 motion.json 初稿。补全动态分镜与字幕；确认没有占位镜头后才设 draft=false。场景实现位于 remotion/src/scenes，类型与参数必须在 Python 校验和 TypeScript 类型/调度中同时注册。
+6. 先 `render_remotion.py <工程> --sheet 12`、`--stills`、`--det`，检查实际动作与字幕 DOM 边界；再 `--jobs 2` 渲出 renders/raw.mp4，`finalize.py` 只合原 narration.wav。字号、两行限制和 y=1500 的字幕安全区继续执行；M01 纸底使用深色字。
+7. `check_film.py <工程>` 按 Remotion 分支终检。校验源摘要、字幕、分镜、输出规格、帧数、无声 raw、最终合成来源和响度；再完整看听。自动检查不能声称已经人工审片。
+
+详细命令、motion.json 字段、重配音后的更新和片段导出见 `references/remotion.md`。
+
+Remotion 工程不需要 `film.js` 或 `index.html`；CUSTOM 使用的素材须存在并登记摘要。未知场景、过期输入和 draft 工程必须报错。历史程序场景仅作兼容，逐书设计的素材和动作不应被旧场景限制。
+
+已有 Canvas 工程仍识别原引擎；显式 `--world` 或 `--renderer canvas` 才新建旧生图流程。`--force` 不覆盖已有 motion.json，不把旧工程直接切换成新引擎。
 
 ## 一条硬规矩
 
@@ -22,17 +40,29 @@ description: >
 节奏靠旁白的停顿、画面的落定和留白做，不靠音乐。
 `scripts/check_film.py` 把这条当硬检查，过不去就不许交片。
 
-## 七步流程
+## 文案确认门
+
+第 1 步只出文案，然后停下等用户。
+
+- 把成稿完整给用户看：书名、风格、预计时长、本期切口、剧透说明、章节提纲、正文、备选标题、配音提示和简短来源说明。
+- 用户说"确认 / 可以 / 按这个继续"之后，才写 `<工程>/script.json` 并进入第 2 步。
+- 用户要改，就按意见改文案再给一版；改到用户确认之前，不写 script.json。
+- 未确认前禁止跑 `scripts/make_voiceover.py`、`scripts/new_film.py`，也不建工程、不出图、不排分镜。
+- 用户把现成文案交给工作流（"文案已定，做成片"）时，视为已确认，可直接从第 2 步开始。
+
+## 历史 Canvas 七步流程（只在显式选择旧引擎或维护旧工程时使用）
 
 每步后面是过关标准。没过就停在这一步改。命令都在本工作区根目录执行，`<工程>` 指 `projects/<片名>`。
 
-### 1. 文案：调 emotional-book-review
+### 1. 文案：调 emotional-book-review，交用户确认
 
-用 `skills/emotional-book-review/`（SKILL.md 入口）出成稿：书名 / 作者 / 摘录或笔记 → 约 60 秒口播文案，
-四种风格（情感共鸣 / 文学治愈 / 遗憾告别 / 人生感悟）选最契合的一种。
-把成稿按自然段写成 `<工程>/script.json`（格式见 `references/storyboard.md`），固定温暖男声。
+用 `skills/emotional-book-review/`（SKILL.md 入口）出成稿：默认8–15分钟叙事讲解型深度书评，先以预计10–12分钟构思；用户指定短篇或其他风格时按其要求。按 `references/NARRATIVE_LONGFORM.md` 确定范围和剧透边界，建立叙事与证据底稿，先做章节提纲，再将分析嵌入叙事节点。小说沿人物事件推进，非虚构作品沿问题与论证推进。
+参考视频转写用于学习写法，不直接充当原著引文。事实、作者观点、人物说法与自己的理解分开；材料不足先补充、缩小范围或说明后交较短稿，不补情节凑时长。事实和朗读听感分两轮检查。
+成稿与简短引用依据先交用户确认，不在这一轮写工程文件、不配音。来源说明不进入旁白，详细引用记录在确认后移交项目事实表；原创落点不加作者署名。
+用户确认后，把最终稿写成 `<工程>/script.json`（格式见 `references/storyboard.md`）：按朗读意群分段，完整句可以跨字幕屏；可带 `en` 英文副行和 `closing` 落点卡，固定温暖男声。
 
-过关：删掉书名还像在谈这本书；没有编造的原著引文和情节；朗读时长与目标时长相符。
+过关：文案自检通过（删掉书名还像在谈这本书；入口由书中片段接续、中段有推进、末句有必要；没有编造的原著引文和情节；未测量时只标预计时长，正式配音后实测；正文句长服从听感，字幕每行≤18字；有引用时保留记录、无伪署名），
+且用户明确确认。缺任一条件就停在第 1 步。
 
 ### 2. 配音：温暖男声 + 真实时间轴
 
@@ -49,15 +79,15 @@ Key 写在根目录 `.env` 的 `FISH_API_KEY`。语速 `--speed 0.9` 更克制�
 ### 3. 分镜表：按旁白时间写，不先排秒数
 
 照 `references/storyboard.md` 写 `<工程>/storyboard.md`：一镜一行 = 时间（取 timings 分段边界）/ 旁白 / 画面 / 观众明白了什么。
-形象先行：每句找到一样外行认得的东西来演，动词真的发生；画不出来的句子改句子（改了要同步重配音）。
+形象先行：按句意选可理解的画面，动词真的发生；抽象评论可用标明性质的隐喻。确需改动原创正文时重新交用户确认并重配音；原著引文不可为画面改写，只能换呈现方式或重新核选短引。
 末尾写事实表和"示意"清单。
 
 过关：遮住旁白列，只读"画面"也看得出在讲什么；每句的名词屏上找得到；没有分镜表不建工程。
 
 ### 4. 选外观：跟着文案风格走
 
-从 **S01–S06** 选择主画风：S01暖光纸感油画、S02森系手绘绘本、S03蓝灰胶片插画、S04淡彩水彩散文、S05黑白版画、S06超现实纸艺。
-文学治愈优先S01（轻盈接纳用S02）；情感共鸣／遗憾告别优先S03（回忆散文用S04）；人生感悟优先S01（现实题材用S05，抽象观念用S06）。
+从 **S01–S07** 选择主画风：S01暖光纸感油画、S02森系手绘绘本、S03蓝灰胶片插画、S04淡彩水彩散文、S05黑白版画、S06超现实纸艺、S07电影静帧。
+文学治愈优先S01（轻盈接纳用S02）；情感共鸣／遗憾告别优先S03（回忆散文用S04，雨夜窗边用S07）；人生感悟优先S01（现实题材用S05，抽象观念用S06，余华式冷峻现实用S07）。
 以书籍事实和用户指定为先，一片一套；不确定用S01，不强制结尾转暖。
 
 在 `script.json` 写 `"visual_style": "S01"`；也可用 `review_style` 指定四类文风，省略画风时脚本按映射选择。
@@ -68,7 +98,7 @@ Key 写在根目录 `.env` 的 `FISH_API_KEY`。语速 `--speed 0.9` 更克制�
 ### 5. 建工程、AI出图、做分镜（9:16）
 
 ```bash
-python scripts/new_film.py <工程> --world S01      # S01–S06；已配音时自动带入真实片长与分段
+python scripts/new_film.py <工程> --world S01      # S01–S07；已配音时自动带入真实片长与分段
 ```
 
 自动生成 `art-direction.json`（绘画清单）、`art-direction.js`（浏览器清单）、`art-prompts.md`（草稿提示词）、`assets/`、`film.js` 和 `index.html`。
@@ -90,7 +120,7 @@ python engine/render.py <工程> --motion 8.2 10.6
 python engine/render.py <工程> --serve
 ```
 
-图片加载完成后才开始渲染；缺图立即报错。六套的底色、字幕字族、颗粒和辉光按统一配置生效，油画／水彩等材质来自生成的图片。
+图片加载完成后才开始渲染；缺图立即报错。七套的底色、字幕字族、颗粒、辉光和暗角按统一配置生效，油画／水彩／胶片等材质来自生成的图片。
 `film.js` 的 `DUR`、绘画清单的 `duration` 必须等于 `timings.json` 的 `duration`。重配旁白后同步镜头和字幕。
 换画风：修改 `art-direction.json` 的 `style`，重新准备、出图和验证；不用覆盖已有 `film.js`。风格变更本身不会重绘已存在图片。
 
@@ -103,7 +133,7 @@ B/C仅为旧工程兼容参数，不作为新书评默认选项。
 ### 6. 适配字幕
 
 字幕 = 旁白原文，按 `audio/vo/` 的真实停顿拆短，写进 `SUBS`。
-位置只认 `SUB_Y = 1520`（≈0.79×H），最多两行、一行 ≤18 字、一句最多染一处色，底部约 18% 留给抖音 UI。
+位置只认 `SUB_Y = 1500`（≈0.78×H），最多两行、一行 ≤18 字，中文主行 76–78%H、英文副行 81–84%H，一句最多染一处色，底部约 18% 留给抖音 UI。
 细则和常见毛病见 `references/vertical.md` 第三、六节。
 
 ```bash
@@ -126,16 +156,20 @@ python scripts/check_film.py <工程>                # 自动项 FAIL 就必须�
 
 | | |
 |---|---|
+| `remotion/` | 新默认的 React/SVG 动态场景、字幕、主题与按帧渲染 |
+| `references/remotion.md` | motion.json、时间规则、场景参数、新入口与样片复现 |
+| `scripts/motion_project.py` | 分镜、字幕、源摘要与时间校验 |
+| `scripts/render_remotion.py` | 新默认预览、静帧、拼图、确定性检查与无声画面渲染 |
 | `skills/emotional-book-review/` | 第 1 步的书评文案 skill（写作规范、四种风格、输出格式） |
 | `references/storyboard.md` | script.json 格式、分镜表写法、事实边界、风格→外观 |
 | `references/vertical.md` | **9:16 硬规范**：跑道、字幕、旁白对齐、没有配乐时节奏怎么做 |
 | `references/visualization.md` | 找形象、六种画法、什么时候不画、看图改图的毛病表 |
 | `references/visual-grammar.md` | 定了画法之后的速查：句型、版式、常驻元素、转场、动效手感 |
-| `references/script.md` | 文案的量、骨架、句式、事实、标题 |
-| `references/worlds.md` | S01–S06 六套绘画外观、提示词与验收规格 |
+| `references/script.md` | 当前文案流程、时长估算与移交规则；历史横屏案例单独存档 |
+| `references/worlds.md` | S01–S07 七套绘画外观、提示词与验收规格 |
 | `references/engine.md` | 引擎 API、命令、坑（含本工作流与通用引擎的差异） |
 | `engine/` | `vk.js` `vk-kit.js` `render.py` `index.html` `get_fonts.py` `fonts/`（已自带字体） |
-| `references/visual-styles.json` | 六套画风统一配置 |
+| `references/visual-styles.json` | 七套画风统一配置 |
 | `scripts/prepare_art.py` | 校验分镜并导出逐镜提示词与浏览器素材清单 |
 | `scripts/` | `new_film.py` 建 9:16 工程 · `make_voiceover.py` 温暖男声旁白 · `finalize.py` 只合人声 · `check_film.py` 终检 |
 | `projects/` | 每条片一个工程目录 |
